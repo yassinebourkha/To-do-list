@@ -1,15 +1,18 @@
 package com.example.todolistapplication
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,21 +22,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.platform.LocalContext
 import com.example.todolistapplication.ui.theme.ToDoListApplicationTheme
 import com.google.firebase.database.*
+import com.google.firebase.auth.FirebaseAuth
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.ui.unit.dp
 
 data class Task(
     var id: String = "",
     var title: String = "",
     var description: String = "",
-    var completed: Boolean = false
+    var completed: Boolean = false,
+    var date: Long = System.currentTimeMillis() // Timestamp pour la date de création
 )
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-
             ToDoListApplicationTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     TaskManager(modifier = Modifier.padding(innerPadding))
@@ -46,11 +54,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TaskManager(modifier: Modifier = Modifier) {
     var tasks by remember { mutableStateOf(listOf<Task>()) }
-    var filter by remember { mutableStateOf("All") } // Par défaut, afficher toutes les tâches
+    var filter by remember { mutableStateOf("All") } // Default: show all tasks
     var isAddingTask by remember { mutableStateOf(false) }
     var isEditingTask by remember { mutableStateOf<Task?>(null) }
-    var showFilterDropdown by remember { mutableStateOf(false) } // État pour afficher ou non la liste déroulante
+    var taskToDelete by remember { mutableStateOf<Task?>(null) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    var showFilterMenu by remember { mutableStateOf(false) } // Pour afficher le menu déroulant
 
+    val context = LocalContext.current
     val database = FirebaseDatabase.getInstance()
     val myRef: DatabaseReference = database.getReference("tasks")
 
@@ -64,9 +75,11 @@ fun TaskManager(modifier: Modifier = Modifier) {
                     val title = taskSnapshot.child("title").getValue(String::class.java) ?: ""
                     val description = taskSnapshot.child("description").getValue(String::class.java) ?: ""
                     val completed = taskSnapshot.child("completed").getValue(Boolean::class.java) ?: false
-                    taskList.add(Task(id, title, description, completed))
+                    val date = taskSnapshot.child("date").getValue(Long::class.java) ?: System.currentTimeMillis()
+
+                    taskList.add(Task(id, title, description, completed, date))
                 }
-                tasks = taskList
+                tasks = taskList.sortedWith(compareByDescending<Task> { it.completed }.thenByDescending { it.date })
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -75,95 +88,164 @@ fun TaskManager(modifier: Modifier = Modifier) {
         })
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        // Titre
-        Text(
-            text = "To-Do List Application",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(8.dp)
-        )
+    // Liste filtrée des tâches
+    val filteredTasks = when (filter) {
+        "Completed" -> tasks.filter { it.completed }
+        "Not Completed" -> tasks.filter { !it.completed }
+        else -> tasks
+    }
 
-        // Row pour les boutons Filter et Add Task
+    // Contenu principal
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 54.dp)
+    ) {
+        // Icône Logout avec redirection vers LoginActivity
         Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(8.dp)
+                .clickable {
+                    Log.d("Logout", "Logout button or text clicked")
+                    val intent = Intent(context, LoginActivity::class.java)
+                    context.startActivity(intent)
+
+                    if (context is ComponentActivity) {
+                        context.finish()
+                    }
+                }
         ) {
-            // Bouton de filtre avec DropdownMenu
-            Box {
-                Button(onClick = { showFilterDropdown = !showFilterDropdown }) {
+            // Icône Logout
+            Icon(
+                imageVector = Icons.Default.ExitToApp,
+                contentDescription = "Logout Icon",
+                tint = Color.Red,
+                modifier = Modifier.size(24.dp)
+            )
+
+            Spacer(modifier = Modifier.width(8.dp)) // Espacement entre l'icône et le texte
+
+            // Texte Logout
+            Text(
+                text = "Logout",
+                color = Color.Red,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+
+
+            )
+        }
+
+
+        // Actions principales
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            // Titre
+            Text(
+                text = "To-Do List Application",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(8.dp)
+            )
+
+            // Bouton Ajouter une tâche
+            Button(
+                onClick = { isAddingTask = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Text("Add Task")
+            }
+
+            // Bouton Filtrer
+            Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)
+                 // ✅ Ajout de la bordure noire
+            ) {
+                Button(
+                    onClick = { showFilterMenu = !showFilterMenu },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
                     Text("Filter: $filter")
                 }
                 DropdownMenu(
-                    expanded = showFilterDropdown,
-                    onDismissRequest = { showFilterDropdown = false }
+                    expanded = showFilterMenu,
+                    onDismissRequest = { showFilterMenu = false }
                 ) {
                     DropdownMenuItem(
                         text = { Text("All") },
                         onClick = {
                             filter = "All"
-                            showFilterDropdown = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Not Completed") },
-                        onClick = {
-                            filter = "Not Completed"
-                            showFilterDropdown = false
+                            showFilterMenu = false
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("Completed") },
                         onClick = {
                             filter = "Completed"
-                            showFilterDropdown = false
+                            showFilterMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Not Completed") },
+                        onClick = {
+                            filter = "Not Completed"
+                            showFilterMenu = false
                         }
                     )
                 }
             }
 
-            // Bouton Ajouter une Tâche
-            Button(
-                onClick = { isAddingTask = true },
+            // Liste des tâches
+            LazyColumn(
                 modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 16.dp)
+
             ) {
-                Text("Add Task")
-            }
-        }
-
-        // Liste filtrée des tâches
-        val filteredTasks = when (filter) {
-            "Not Completed" -> tasks.filter { !it.completed }
-            "Completed" -> tasks.filter { it.completed }
-            else -> tasks
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 16.dp)
-        ) {
-            items(filteredTasks, key = { it.id }) { task ->
-                TaskItem(
-                    task = task,
-                    onDelete = { deleteTask(it, myRef) },
-                    onEdit = { isEditingTask = it },
-                    onToggle = { toggleTaskCompletion(it, myRef) }
-                )
+                items(filteredTasks, key = { it.id }) { task ->
+                    TaskItem(
+                        task = task,
+                        onDelete = { taskToDelete = it },
+                        onEdit = { isEditingTask = it },
+                        onToggle = { toggleTaskCompletion(it, myRef) }
+                    )
+                }
             }
         }
     }
 
-    // Dialog Ajouter une Tâche
+    // Dialog supprimer une tâche
+    taskToDelete?.let { task ->
+        AlertDialog(
+            onDismissRequest = { taskToDelete = null },
+            title = { Text("Confirm Delete") },
+            text = { Text("Are you sure you want to delete this task?") },
+            confirmButton = {
+                Button(onClick = {
+                    deleteTask(task, myRef)
+                    taskToDelete = null
+                }) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { taskToDelete = null }) {
+                    Text("No")
+                }
+            }
+        )
+    }
+
+    // Dialog Ajouter une tâche
     if (isAddingTask) {
         TaskDialog(
             title = "Add Task",
@@ -175,7 +257,7 @@ fun TaskManager(modifier: Modifier = Modifier) {
         )
     }
 
-    // Dialog Modifier une Tâche
+    // Dialog Modifier une tâche
     isEditingTask?.let { task ->
         TaskDialog(
             title = "Edit Task",
@@ -193,7 +275,6 @@ fun TaskManager(modifier: Modifier = Modifier) {
 
 
 
-
 @Composable
 fun TaskItem(
     task: Task,
@@ -204,13 +285,15 @@ fun TaskItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            // Titre de la tâche
             Text(
                 text = task.title,
                 fontSize = 20.sp,
@@ -218,43 +301,93 @@ fun TaskItem(
                 color = Color.Black
             )
             Spacer(modifier = Modifier.height(8.dp))
+
+            // Description de la tâche
             Text(
                 text = task.description,
                 fontSize = 16.sp,
                 color = Color.Gray
             )
             Spacer(modifier = Modifier.height(8.dp))
+
+            // Affichage de la date
+            val dateFormatted = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+                .format(java.util.Date(task.date))
+            Text(
+                text = "Created on: $dateFormatted",
+                fontSize = 14.sp,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Statut et actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Statut de la tâche (Aligné à gauche)
                 Text(
                     text = if (task.completed) "Completed" else "Not Completed",
-                    color = if (task.completed) Color.Green else Color.Red
+                    color = if (task.completed) Color.Green else Color.Red,
+                    fontWeight = FontWeight.Bold
                 )
-                Row {
-                    Button(onClick = { onToggle(task) }) {
-                        Text(if (task.completed) "Mark Incomplete" else "Mark Complete")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { onEdit(task) }) {
-                        Text("Edit")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = { onDelete(task) }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete Task",
-                            tint = Color.Red
-                        )
-                    }
+
+                // Bouton Toggle Completion (Aligné à droite)
+                Button(
+                    onClick = { onToggle(task) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                ) {
+                    Text(
+                        text = if (task.completed) "Mark Incomplete" else "Mark Complete",
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Icônes Edit et Delete
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Icône Edit
+                IconButton(
+                    onClick = { onEdit(task) },
+                    modifier = Modifier.size(48.dp) // Taille augmentée
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Task",
+                        tint = Color.Gray
+                    )
+                }
+
+                // Icône Delete
+                IconButton(
+                    onClick = { onDelete(task) },
+                    modifier = Modifier.size(48.dp) // Taille augmentée
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete Task",
+                        tint = Color.Red
+                    )
                 }
             }
         }
     }
 }
+
+
+
+
 
 @Composable
 fun TaskDialog(
@@ -312,25 +445,33 @@ fun TaskDialog(
 }
 
 
-
-// Fonction pour ajouter une tâche
+// Function to add a task
 fun addTask(task: Task, myRef: DatabaseReference) {
     val id = myRef.push().key ?: return
-    val newTask = task.copy(id = id)
+    val newTask = task.copy(id = id, date = System.currentTimeMillis()) // Ajouter la date actuelle
     myRef.child(id).setValue(newTask)
 }
 
-// Fonction pour mettre à jour une tâche
+
+// Function to update a task
 fun updateTask(task: Task, myRef: DatabaseReference) {
     myRef.child(task.id).setValue(task)
 }
 
-// Fonction pour supprimer une tâche
+// Function to delete a task
 fun deleteTask(task: Task, myRef: DatabaseReference) {
-    myRef.child(task.id).removeValue()
+    if (task.id.isNotEmpty()) {
+        myRef.child(task.id).removeValue()
+            .addOnSuccessListener {
+                Log.d("DeleteTask", "Task deleted successfully.")
+            }
+            .addOnFailureListener {
+                Log.e("DeleteTask", "Failed to delete task: ${it.message}")
+            }
+    }
 }
 
-// Fonction pour basculer l'état d'une tâche
+// Function to toggle task completion
 fun toggleTaskCompletion(task: Task, myRef: DatabaseReference) {
     myRef.child(task.id).child("completed").setValue(!task.completed)
 }
