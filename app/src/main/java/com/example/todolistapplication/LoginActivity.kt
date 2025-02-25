@@ -4,24 +4,31 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.todolistapplication.ui.theme.ToDoListApplicationTheme
 import com.google.firebase.auth.FirebaseAuth
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.background
-import androidx.compose.foundation.Image
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.draw.drawWithContent
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 
 class LoginActivity : ComponentActivity() {
 
@@ -38,18 +45,16 @@ class LoginActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     LoginPage(
                         onLoginSuccess = {
-                            // Redirect to MainActivity after successful login
                             val intent = Intent(this@LoginActivity, MainActivity::class.java)
                             startActivity(intent)
                             finish() // Close LoginActivity to avoid returning to it
                         },
                         onRegister = {
-                            // Open RegisterAuth activity for user registration
                             val intent = Intent(this@LoginActivity, RegisterAuth::class.java)
                             startActivity(intent)
                         },
                         auth = auth,
-                        modifier = Modifier.padding(innerPadding) // Apply padding
+                        modifier = Modifier.padding(innerPadding)
                     )
                 }
             }
@@ -69,113 +74,118 @@ fun LoginPage(
     var showError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    // Wrapping all content in a Box to set a background image
-    Box(
-        modifier = Modifier.fillMaxSize()
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Background Image
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 🖼️ Logo circulaire
         Image(
-            painter = painterResource(id = R.drawable.test1), // Remplacez par le nom de votre image
-            contentDescription = "Background Image",
-            contentScale = ContentScale.Crop, // Rend l'image couvrante
+            painter = painterResource(id = R.drawable.login), // Remplace par ton logo
+            contentDescription = "App Logo",
             modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(alpha = 0.99f) // Nécessaire pour activer l'effet de dessin
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        color = Color.Black.copy(alpha = 0.5f) // Optionnel : assombrir légèrement
-                    )
-                }
+                .size(100.dp)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop
         )
 
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Overlay the content on top of the background
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Title at the top of the screen (To-Do List)
-            Text(
-                text = "To-Do List Application",
-                fontSize = 35.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 252.dp),
-                //color = MaterialTheme.colorScheme.onPrimary // Adjust text color for visibility
-                color = MaterialTheme.colorScheme.primary
-            )
+        // 📝 Titre de la page de connexion
+        Text(
+            text = "Login",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
 
-            // Title of the login page
-            Text(
-                text = "Login",
-                fontSize = 32.sp,
-                modifier = Modifier.padding(bottom = 16.dp),
-                color = MaterialTheme.colorScheme.onPrimary // Adjust text color for visibility
-            )
+        Spacer(modifier = Modifier.height(24.dp))
 
-            // Email input field
-            TextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                modifier = Modifier.fillMaxWidth()
-            )
+        // ✉️ Champ Email avec icône
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Email") },
+            leadingIcon = {
+                Icon(imageVector = Icons.Default.Email, contentDescription = "Email Icon")
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            shape = RoundedCornerShape(20.dp),
+            singleLine = true
+        )
 
-            Spacer(modifier = Modifier.height(8.dp))
+        // 🔑 Champ Mot de passe avec icône
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Password") },
+            leadingIcon = {
+                Icon(imageVector = Icons.Default.Lock, contentDescription = "Password Icon")
+            },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            shape = RoundedCornerShape(20.dp),
+            singleLine = true
+        )
 
-            // Password input field
-            TextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Password") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation()
-            )
+        Spacer(modifier = Modifier.height(24.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Login Button
-            Button(
-                onClick = {
-                    auth.signInWithEmailAndPassword(email, password)
-                        .addOnCompleteListener { task ->
-                            if (task.isSuccessful) {
-                                onLoginSuccess()
-                            } else {
-                                showError = true
-                                errorMessage = task.exception?.localizedMessage ?: "Unknown error occurred"
+        // 🔓 Bouton de connexion stylisé
+        Button(
+            onClick = {
+                auth.signInWithEmailAndPassword(email, password)
+                    .addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            onLoginSuccess()
+                        } else {
+                            showError = true
+                            val exception = task.exception
+                            errorMessage = when (exception) {
+                                is FirebaseAuthInvalidCredentialsException -> "Mot de passe incorrect."
+                                is FirebaseAuthInvalidUserException -> "Aucun compte trouvé avec cet email."
+                                else -> exception?.localizedMessage ?: "Une erreur inconnue est survenue."
                             }
                         }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Login")
-            }
-
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Register Button for new users
-            Button(
-                onClick = onRegister,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Create New Account")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Display error message if login failed
-            if (showError) {
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(8.dp)
-                )
-            }
+                    }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(25.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2979FF))
+        ) {
+            Text("Login", fontSize = 18.sp, color = Color.White)
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ⚠️ Affichage du message d'erreur
+        if (showError) {
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(8.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 🔗 Lien vers la page d'inscription
+        Text(
+            text = "Create New Account",
+            fontSize = 16.sp,
+            color = Color(0xFF2979FF),
+            modifier = Modifier.clickable { onRegister() }
+        )
     }
 }

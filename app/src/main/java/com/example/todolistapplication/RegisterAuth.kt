@@ -5,20 +5,30 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.example.todolistapplication.ui.theme.ToDoListApplicationTheme
 import com.google.firebase.auth.FirebaseAuth
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.graphics.Color
 
 class RegisterAuth : ComponentActivity() {
 
@@ -26,8 +36,6 @@ class RegisterAuth : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Initialize Firebase Authentication
         auth = FirebaseAuth.getInstance()
 
         setContent {
@@ -83,63 +91,88 @@ fun RegisterPage(
         ) {
             Icon(
                 imageVector = Icons.Default.ArrowBack,
-                contentDescription = "",
+                contentDescription = "Back",
                 modifier = Modifier
                     .size(28.dp)
                     .clickable { onBackToLogin() },
                 tint = Color.Black
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "",
-                fontSize = 16.sp,
-                modifier = Modifier.clickable { onBackToLogin() },
-                color = Color.Blue
-            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 📝 Titre de la page d'inscription
-        Text(
-            text = "Create Account",
-            fontSize = 32.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
+        // 🖼️ Logo circulaire
+        Image(
+            painter = painterResource(id = R.drawable.logo), // Ajoute ton logo dans res/drawable
+            contentDescription = "App Logo",
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop
         )
 
-        // ✉️ Champ Email
-        TextField(
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 📝 Titre
+        Text(
+            text = "Create Account",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ✉️ Champ Email avec icône
+        OutlinedTextField(
             value = email,
             onValueChange = { email = it },
             label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
+            leadingIcon = {
+                Icon(imageVector = Icons.Default.Email, contentDescription = "Email Icon")
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            shape = RoundedCornerShape(20.dp),
+            singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 🔑 Champ Mot de passe
-        TextField(
+        // 🔑 Champ Mot de passe avec icône
+        OutlinedTextField(
             value = password,
             onValueChange = { password = it },
             label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation()
+            leadingIcon = {
+                Icon(imageVector = Icons.Default.Lock, contentDescription = "Password Icon")
+            },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            shape = RoundedCornerShape(20.dp),
+            singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // ✅ Champ Confirmation du mot de passe
-        TextField(
+        // 🔒 Confirmation du mot de passe avec icône
+        OutlinedTextField(
             value = confirmPassword,
             onValueChange = { confirmPassword = it },
             label = { Text("Confirm Password") },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation()
+            leadingIcon = {
+                Icon(imageVector = Icons.Default.Lock, contentDescription = "Confirm Password Icon")
+            },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            shape = RoundedCornerShape(20.dp),
+            singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // 📝 Bouton d'enregistrement
+        // 📝 Bouton d'enregistrement stylisé
         Button(
             onClick = {
                 when {
@@ -169,9 +202,13 @@ fun RegisterPage(
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(25.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2979FF))
         ) {
-            Text("Register")
+            Text("Register", fontSize = 18.sp, color = Color.White)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -184,5 +221,15 @@ fun RegisterPage(
                 modifier = Modifier.padding(8.dp)
             )
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 🔗 Lien vers la connexion
+        Text(
+            text = "Sign in",
+            fontSize = 16.sp,
+            color = Color(0xFF2979FF),
+            modifier = Modifier.clickable { onBackToLogin() }
+        )
     }
 }

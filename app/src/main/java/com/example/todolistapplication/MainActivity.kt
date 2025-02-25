@@ -5,14 +5,16 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,19 +27,19 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
 import com.example.todolistapplication.ui.theme.ToDoListApplicationTheme
 import com.google.firebase.database.*
-import com.google.firebase.auth.FirebaseAuth
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
-import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.*
 
+// ✅ Data class pour représenter une tâche
 data class Task(
     var id: String = "",
     var title: String = "",
     var description: String = "",
     var completed: Boolean = false,
-    var date: Long = System.currentTimeMillis() // Timestamp pour la date de création
+    var date: Long = System.currentTimeMillis()
 )
 
+// ✅ Classe principale de l'activité
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,35 +53,32 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// ✅ Composable principal pour gérer les tâches
 @Composable
 fun TaskManager(modifier: Modifier = Modifier) {
     var tasks by remember { mutableStateOf(listOf<Task>()) }
-    var filter by remember { mutableStateOf("All") } // Default: show all tasks
+    var filter by remember { mutableStateOf("All") }
     var isAddingTask by remember { mutableStateOf(false) }
     var isEditingTask by remember { mutableStateOf<Task?>(null) }
     var taskToDelete by remember { mutableStateOf<Task?>(null) }
-    var showLogoutDialog by remember { mutableStateOf(false) }
-    var showFilterMenu by remember { mutableStateOf(false) } // Pour afficher le menu déroulant
+    var showFilterMenu by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val database = FirebaseDatabase.getInstance()
     val myRef: DatabaseReference = database.getReference("tasks")
 
-    // Charger les tâches depuis Firebase
+    // ✅ Charger les tâches depuis Firebase
     LaunchedEffect(Unit) {
         myRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(dataSnapshot: DataSnapshot) {
-                val taskList = mutableListOf<Task>()
-                for (taskSnapshot in dataSnapshot.children) {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                tasks = snapshot.children.mapNotNull { taskSnapshot ->
                     val id = taskSnapshot.key ?: ""
                     val title = taskSnapshot.child("title").getValue(String::class.java) ?: ""
                     val description = taskSnapshot.child("description").getValue(String::class.java) ?: ""
                     val completed = taskSnapshot.child("completed").getValue(Boolean::class.java) ?: false
                     val date = taskSnapshot.child("date").getValue(Long::class.java) ?: System.currentTimeMillis()
-
-                    taskList.add(Task(id, title, description, completed, date))
-                }
-                tasks = taskList.sortedWith(compareByDescending<Task> { it.completed }.thenByDescending { it.date })
+                    Task(id, title, description, completed, date)
+                }.sortedWith(compareByDescending<Task> { it.completed }.thenByDescending { it.date })
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -88,142 +87,122 @@ fun TaskManager(modifier: Modifier = Modifier) {
         })
     }
 
-    // Liste filtrée des tâches
     val filteredTasks = when (filter) {
         "Completed" -> tasks.filter { it.completed }
         "Not Completed" -> tasks.filter { !it.completed }
         else -> tasks
     }
 
-    // Contenu principal
-    Box(
-        modifier = Modifier
+    // ✅ Contenu principal
+    Column(
+        modifier = modifier
             .fillMaxSize()
-            .padding(top = 54.dp)
+            .padding(16.dp)
     ) {
-        // Icône Logout avec redirection vers LoginActivity
+
+        // 🔓 Logout
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .padding(8.dp)
+                .fillMaxWidth()
                 .clickable {
-                    Log.d("Logout", "Logout button or text clicked")
                     val intent = Intent(context, LoginActivity::class.java)
                     context.startActivity(intent)
-
-                    if (context is ComponentActivity) {
-                        context.finish()
-                    }
+                    (context as? ComponentActivity)?.finish()
                 }
         ) {
-            // Icône Logout
             Icon(
                 imageVector = Icons.Default.ExitToApp,
-                contentDescription = "Logout Icon",
+                contentDescription = "Logout",
                 tint = Color.Red,
                 modifier = Modifier.size(24.dp)
             )
-
-            Spacer(modifier = Modifier.width(8.dp)) // Espacement entre l'icône et le texte
-
-            // Texte Logout
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Logout",
                 color = Color.Red,
-                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-
-
+                fontSize = 16.sp
             )
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Actions principales
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(16.dp)
+        // 📝 Titre
+        Text(
+            text = "To-Do List Application",
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ➕ Bouton d'ajout de tâche
+        Button(
+            onClick = { isAddingTask = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(25.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2979FF))
         ) {
-            // Titre
-            Text(
-                text = "To-Do List Application",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(8.dp)
-            )
+            Text("Add Task", fontSize = 16.sp, color = Color.White)
+        }
 
-            // Bouton Ajouter une tâche
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 🔍 Filtrage des tâches
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+        ) {
             Button(
-                onClick = { isAddingTask = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                onClick = { showFilterMenu = !showFilterMenu },
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(25.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2979FF))
             ) {
-                Text("Add Task")
+                Text("Filter: $filter", fontSize = 16.sp, color = Color.White)
             }
 
-            // Bouton Filtrer
-            Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)
-                 // ✅ Ajout de la bordure noire
+            DropdownMenu(
+                expanded = showFilterMenu,
+                onDismissRequest = { showFilterMenu = false }
             ) {
-                Button(
-                    onClick = { showFilterMenu = !showFilterMenu },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                ) {
-                    Text("Filter: $filter")
-                }
-                DropdownMenu(
-                    expanded = showFilterMenu,
-                    onDismissRequest = { showFilterMenu = false }
-                ) {
+                listOf("All", "Completed", "Not Completed").forEach { option ->
                     DropdownMenuItem(
-                        text = { Text("All") },
+                        text = { Text(option) },
                         onClick = {
-                            filter = "All"
-                            showFilterMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Completed") },
-                        onClick = {
-                            filter = "Completed"
-                            showFilterMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Not Completed") },
-                        onClick = {
-                            filter = "Not Completed"
+                            filter = option
                             showFilterMenu = false
                         }
                     )
                 }
             }
+        }
 
-            // Liste des tâches
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 16.dp)
+        Spacer(modifier = Modifier.height(16.dp))
 
-            ) {
-                items(filteredTasks, key = { it.id }) { task ->
-                    TaskItem(
-                        task = task,
-                        onDelete = { taskToDelete = it },
-                        onEdit = { isEditingTask = it },
-                        onToggle = { toggleTaskCompletion(it, myRef) }
-                    )
-                }
+        // 📋 Liste des tâches
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 8.dp)
+        ) {
+            items(filteredTasks, key = { it.id }) { task ->
+                TaskItem(
+                    task = task,
+                    onDelete = { taskToDelete = it },
+                    onEdit = { isEditingTask = it },
+                    onToggle = { toggleTaskCompletion(it, myRef) }
+                )
             }
         }
     }
 
-    // Dialog supprimer une tâche
+    // 🗑️ Boîte de dialogue de suppression
     taskToDelete?.let { task ->
         AlertDialog(
             onDismissRequest = { taskToDelete = null },
@@ -233,19 +212,15 @@ fun TaskManager(modifier: Modifier = Modifier) {
                 Button(onClick = {
                     deleteTask(task, myRef)
                     taskToDelete = null
-                }) {
-                    Text("Yes")
-                }
+                }) { Text("Yes") }
             },
             dismissButton = {
-                Button(onClick = { taskToDelete = null }) {
-                    Text("No")
-                }
+                Button(onClick = { taskToDelete = null }) { Text("No") }
             }
         )
     }
 
-    // Dialog Ajouter une tâche
+    // ➕ Boîte de dialogue d'ajout de tâche
     if (isAddingTask) {
         TaskDialog(
             title = "Add Task",
@@ -257,7 +232,7 @@ fun TaskManager(modifier: Modifier = Modifier) {
         )
     }
 
-    // Dialog Modifier une tâche
+    // ✏️ Boîte de dialogue de modification de tâche
     isEditingTask?.let { task ->
         TaskDialog(
             title = "Edit Task",
@@ -273,8 +248,7 @@ fun TaskManager(modifier: Modifier = Modifier) {
     }
 }
 
-
-
+// ✅ Composable pour afficher une tâche
 @Composable
 fun TaskItem(
     task: Task,
@@ -282,113 +256,68 @@ fun TaskItem(
     onEdit: (Task) -> Unit,
     onToggle: (Task) -> Unit
 ) {
+    val dateFormatted = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(task.date))
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+        elevation = CardDefaults.cardElevation(8.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            // Titre de la tâche
-            Text(
-                text = task.title,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = task.title, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(text = task.description, fontSize = 16.sp, color = Color.Gray)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(text = "Created on: $dateFormatted", fontSize = 12.sp, color = Color.Gray)
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Description de la tâche
-            Text(
-                text = task.description,
-                fontSize = 16.sp,
-                color = Color.Gray
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Affichage de la date
-            val dateFormatted = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-                .format(java.util.Date(task.date))
-            Text(
-                text = "Created on: $dateFormatted",
-                fontSize = 14.sp,
-                color = Color.Gray
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Statut et actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Statut de la tâche (Aligné à gauche)
                 Text(
                     text = if (task.completed) "Completed" else "Not Completed",
-                    color = if (task.completed) Color.Green else Color.Red,
+                    color = if (task.completed) Color(0xFF4CAF50) else Color(0xFFF44336),
                     fontWeight = FontWeight.Bold
                 )
 
-                // Bouton Toggle Completion (Aligné à droite)
                 Button(
                     onClick = { onToggle(task) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
-                    modifier = Modifier
-                        .padding(start = 8.dp)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (task.completed) Color.Red else Color.Blue
+                    ),
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     Text(
                         text = if (task.completed) "Mark Incomplete" else "Mark Complete",
-                        color = Color.White,
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
+                        color = Color.White
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Icônes Edit et Delete
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Icône Edit
-                IconButton(
-                    onClick = { onEdit(task) },
-                    modifier = Modifier.size(48.dp) // Taille augmentée
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Task",
-                        tint = Color.Gray
-                    )
+                IconButton(onClick = { onEdit(task) }) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray)
                 }
-
-                // Icône Delete
-                IconButton(
-                    onClick = { onDelete(task) },
-                    modifier = Modifier.size(48.dp) // Taille augmentée
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete Task",
-                        tint = Color.Red
-                    )
+                IconButton(onClick = { onDelete(task) }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
                 }
             }
         }
     }
 }
 
-
-
-
-
+// ✅ Composable pour la boîte de dialogue (ajout/édition)
 @Composable
 fun TaskDialog(
     title: String,
@@ -402,76 +331,68 @@ fun TaskDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = MaterialTheme.shapes.medium
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.padding(16.dp)
         ) {
             Column(
                 modifier = Modifier
                     .padding(16.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(16.dp))
+
                 TextField(
                     value = taskTitle,
                     onValueChange = { taskTitle = it },
                     label = { Text("Title") },
                     modifier = Modifier.fillMaxWidth()
                 )
+
                 Spacer(modifier = Modifier.height(8.dp))
+
                 TextField(
                     value = taskDescription,
                     onValueChange = { taskDescription = it },
                     label = { Text("Description") },
                     modifier = Modifier.fillMaxWidth()
                 )
+
                 Spacer(modifier = Modifier.height(16.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    Button(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { onConfirm(taskTitle, taskDescription) }) {
-                        Text("Confirm")
-                    }
+                    Button(onClick = { onConfirm(taskTitle, taskDescription) }) { Text("Confirm") }
                 }
             }
         }
     }
 }
 
-
-// Function to add a task
+// ✅ Fonctions de manipulation des tâches avec Firebase
 fun addTask(task: Task, myRef: DatabaseReference) {
     val id = myRef.push().key ?: return
-    val newTask = task.copy(id = id, date = System.currentTimeMillis()) // Ajouter la date actuelle
+    val newTask = task.copy(id = id, date = System.currentTimeMillis())
     myRef.child(id).setValue(newTask)
 }
 
-
-// Function to update a task
 fun updateTask(task: Task, myRef: DatabaseReference) {
     myRef.child(task.id).setValue(task)
 }
 
-// Function to delete a task
 fun deleteTask(task: Task, myRef: DatabaseReference) {
     if (task.id.isNotEmpty()) {
         myRef.child(task.id).removeValue()
-            .addOnSuccessListener {
-                Log.d("DeleteTask", "Task deleted successfully.")
-            }
-            .addOnFailureListener {
-                Log.e("DeleteTask", "Failed to delete task: ${it.message}")
-            }
+            .addOnSuccessListener { Log.d("DeleteTask", "Task deleted successfully.") }
+            .addOnFailureListener { Log.e("DeleteTask", "Failed to delete task: ${it.message}") }
     }
 }
 
-// Function to toggle task completion
 fun toggleTaskCompletion(task: Task, myRef: DatabaseReference) {
     myRef.child(task.id).child("completed").setValue(!task.completed)
 }
